@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ app_name }} v{{ version }}</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #64b5f6;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #f44336;
+            transition: background-color 0.3s;
+        }
+
+        .status-indicator.connected {
+            background: #4caf50;
+        }
+
+        .status-text {
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .welcome-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 3rem;
+            max-width: 800px;
+            width: 100%;
+            margin-bottom: 2rem;
+        }
+
+        .welcome-title {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #64b5f6, #42a5f5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .welcome-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.8;
+            margin-bottom: 2rem;
+        }
+
+        .champ-select-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 2rem;
+            display: none;
+        }
+
+        .champ-select-container.active {
+            display: block;
+        }
+
+        .team-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .team {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 1.5rem;
+        }
+
+        .team.blue {
+            border-left: 4px solid #2196f3;
+        }
+
+        .team.red {
+            border-left: 4px solid #f44336;
+        }
+
+        .team-title {
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .champion-slot {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+            min-height: 40px;
+        }
+
+        .champion-slot.filled {
+            background: rgba(76, 175, 80, 0.2);
+        }
+
+        .champion-role {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            min-width: 35px;
+        }
+
+        .champion-name {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .bans-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .bans-title {
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .bans-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5rem;
+        }
+
+        .ban-slot {
+            background: rgba(244, 67, 54, 0.2);
+            border-radius: 5px;
+            padding: 0.5rem;
+            text-align: center;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ban-slot.filled {
+            background: rgba(244, 67, 54, 0.4);
+            font-weight: 500;
+        }
+
+        .update-info {
+            background: rgba(255, 193, 7, 0.2);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        .footer {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem 2rem;
+            text-align: center;
+            font-size: 0.9rem;
+            opacity: 0.7;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #64b5f6;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(76, 175, 80, 0.9);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error {
+            background: rgba(244, 67, 54, 0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">{{ app_name }}</div>
+        <div class="status">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <div class="status-text" id="statusText">연결 대기 중...</div>
+            <div class="loading" id="loadingSpinner"></div>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="welcome-card" id="welcomeCard">
+            <h1 class="welcome-title">League PhD</h1>
+            <p class="welcome-subtitle">리그 오브 레전드 드래프트 분석 도구</p>
+            <p>League of Legends 클라이언트가 실행되면 자동으로 연결됩니다.</p>
+            <p>챔피언 선택 단계에서 실시간 정보를 제공합니다.</p>
+        </div>
+
+        <div class="champ-select-container" id="champSelectContainer">
+            <h2 style="text-align: center; margin-bottom: 2rem;">챔피언 선택</h2>
+            
+            <div class="bans-container">
+                <div class="bans-title">밴 (Bans)</div>
+                <div class="bans-grid" id="bansGrid">
+                    <!-- Ban slots will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <div class="team-container">
+                <div class="team blue">
+                    <div class="team-title">블루팀</div>
+                    <div id="blueTeam">
+                        <!-- Blue team picks will be populated by JavaScript -->
+                    </div>
+                </div>
+                <div class="team red">
+                    <div class="team-title">레드팀</div>
+                    <div id="redTeam">
+                        <!-- Red team picks will be populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="update-info" id="updateInfo">
+            <strong>업데이트 알림:</strong> <span id="updateText"></span>
+        </div>
+    </div>
+
+    <div class="footer">
+        {{ app_name }} v{{ version }} | League PhD는 Riot Games와 관련이 없습니다.
+    </div>
+
+    <script>
+        // Socket.IO connection
+        const socket = io();
+        
+        // DOM elements
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const welcomeCard = document.getElementById('welcomeCard');
+        const champSelectContainer = document.getElementById('champSelectContainer');
+        const updateInfo = document.getElementById('updateInfo');
+        const updateText = document.getElementById('updateText');
+
+        // State
+        let currentChampSelect = null;
+        let championData = {}; // Will store champion ID to name mapping
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeBansGrid();
+            initializeTeams();
+            checkForUpdates();
+        });
+
+        // Socket event handlers
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            showNotification('서버에 연결되었습니다', 'success');
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+            updateConnectionStatus(false);
+            showNotification('서버와의 연결이 끊어졌습니다', 'error');
+        });
+
+        socket.on('connection_status', function(data) {
+            updateConnectionStatus(data.connected);
+        });
+
+        socket.on('status_update', function(data) {
+            updateConnectionStatus(data.connected);
+            if (data.champ_select && data.champ_select.active) {
+                updateChampSelect(data.champ_select, {});
+            }
+        });
+
+        socket.on('champ_select_update', function(data) {
+            updateChampSelect(data.champ_select, data.update);
+        });
+
+        // Functions
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                statusIndicator.classList.add('connected');
+                statusText.textContent = 'League Client 연결됨';
+                loadingSpinner.style.display = 'none';
+            } else {
+                statusIndicator.classList.remove('connected');
+                statusText.textContent = '연결 대기 중...';
+                loadingSpinner.style.display = 'inline-block';
+                
+                // Hide champion select if disconnected
+                champSelectContainer.classList.remove('active');
+                welcomeCard.style.display = 'block';
+            }
+        }
+
+        function updateChampSelect(champSelectData, updateData) {
+            currentChampSelect = champSelectData;
+            
+            if (champSelectData.active) {
+                welcomeCard.style.display = 'none';
+                champSelectContainer.classList.add('active');
+                
+                // Update bans
+                updateBans(champSelectData.bans);
+                
+                // Update picks
+                updatePicks(champSelectData.picks);
+                
+                // Handle specific update types
+                if (updateData.mode === 'ban') {
+                    showNotification('새로운 밴이 추가되었습니다', 'info');
+                } else if (updateData.to_pick_phase) {
+                    showNotification('픽 단계가 시작되었습니다', 'info');
+                } else if (updateData.insert_list && updateData.insert_list.length > 0) {
+                    showNotification('새로운 픽이 추가되었습니다', 'info');
+                }
+            } else if (updateData.mode === 'ended') {
+                champSelectContainer.classList.remove('active');
+                welcomeCard.style.display = 'block';
+                showNotification('챔피언 선택이 종료되었습니다', 'info');
+            }
+        }
+
+        function initializeBansGrid() {
+            const bansGrid = document.getElementById('bansGrid');
+            bansGrid.innerHTML = '';
+            
+            for (let i = 0; i < 10; i++) {
+                const banSlot = document.createElement('div');
+                banSlot.className = 'ban-slot';
+                banSlot.id = `ban-${i}`;
+                banSlot.textContent = `Ban ${i + 1}`;
+                bansGrid.appendChild(banSlot);
+            }
+        }
+
+        function initializeTeams() {
+            const blueTeam = document.getElementById('blueTeam');
+            const redTeam = document.getElementById('redTeam');
+            
+            blueTeam.innerHTML = '';
+            redTeam.innerHTML = '';
+            
+            const roles = ['TOP', 'JGL', 'MID', 'ADC', 'SUP'];
+            
+            for (let i = 0; i < 5; i++) {
+                // Blue team
+                const blueSlot = document.createElement('div');
+                blueSlot.className = 'champion-slot';
+                blueSlot.id = `blue-${i}`;
+                blueSlot.innerHTML = `
+                    <div class="champion-role">${roles[i]}</div>
+                    <div class="champion-name">-</div>
+                `;
+                blueTeam.appendChild(blueSlot);
+                
+                // Red team
+                const redSlot = document.createElement('div');
+                redSlot.className = 'champion-slot';
+                redSlot.id = `red-${i}`;
+                redSlot.innerHTML = `
+                    <div class="champion-role">${roles[i]}</div>
+                    <div class="champion-name">-</div>
+                `;
+                redTeam.appendChild(redSlot);
+            }
+        }
+
+        function updateBans(bans) {
+            for (let i = 0; i < 10; i++) {
+                const banSlot = document.getElementById(`ban-${i}`);
+                if (bans[i]) {
+                    banSlot.textContent = getChampionName(bans[i]);
+                    banSlot.classList.add('filled');
+                } else {
+                    banSlot.textContent = `Ban ${i + 1}`;
+                    banSlot.classList.remove('filled');
+                }
+            }
+        }
+
+        function updatePicks(picks) {
+            const teams = ['blue', 'red'];
+            
+            for (let team = 0; team < 2; team++) {
+                for (let slot = 0; slot < 5; slot++) {
+                    const pickSlot = document.getElementById(`${teams[team]}-${slot}`);
+                    const pick = picks[team][slot];
+                    const nameElement = pickSlot.querySelector('.champion-name');
+                    const roleElement = pickSlot.querySelector('.champion-role');
+                    
+                    if (pick.champion_id) {
+                        nameElement.textContent = getChampionName(pick.champion_id);
+                        pickSlot.classList.add('filled');
+                        
+                        if (pick.role) {
+                            roleElement.textContent = pick.role;
+                        }
+                    } else {
+                        nameElement.textContent = '-';
+                        pickSlot.classList.remove('filled');
+                    }
+                }
+            }
+        }
+
+        function getChampionName(championId) {
+            // This would normally fetch from Riot API or local data
+            // For now, just return the ID
+            return championData[championId] || `Champion ${championId}`;
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type === 'error' ? 'error' : ''}`;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        function checkForUpdates() {
+            fetch('/api/version/check')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.update_available) {
+                        updateText.innerHTML = `
+                            새 버전 ${data.latest}이 사용 가능합니다. 
+                            <a href="${data.download_url}" target="_blank" style="color: #64b5f6;">다운로드</a>
+                        `;
+                        updateInfo.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.log('Failed to check for updates:', error);
+                });
+        }
+    </script>
+</body>
+</html>
